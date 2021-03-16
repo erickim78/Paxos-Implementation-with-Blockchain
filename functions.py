@@ -1,6 +1,7 @@
 import pickle
 import time
 import hashlib
+import uuid
 
 
 def writeList( l: list ):
@@ -23,8 +24,14 @@ def sendMessage( socket, data, isActive ):
     time.sleep(1)
 
     if isActive is True:
-        socket.sendall( pickle.dumps( data ) )
-    else:
-        print("This Network Link is Inactive\n")
+        try:
+            socket.sendall( pickle.dumps( data ) )
+        except:
+            return
+    #
+    #else:
+    #    print("This Network Link is Inactive\n")
+        
+    return 
 
-    return
+

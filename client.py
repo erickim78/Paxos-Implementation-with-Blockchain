@@ -24,31 +24,87 @@ def checkSocket( targetServer ):
     return
 
 
-def requestLeader():
+def listenForServers( address, port ):
+    with socket.socket( socket.AF_INET, socket.SOCK_STREAM ) as s:
+        s.bind( (address, port) )
+        s.listen()
+
+        while True:
+            conn, addr = s.accept()
+            threading.Thread( target=handleServer, args=(conn,) ).start()
+
+    return
+
+
+def handleServer( conn ):
     global currentLeader
     while True:
-        targetServer = currentLeader - 1
-        print(f'No response, requesting server {currentLeader-1} to become Leader')
+        try:
+            data = conn.recv(1024)
+        except:
+            continue
 
-        data = ("leader", "client", "")
+        try:
+            received = pickle.loads(data)
+        except EOFError:
+            continue
+
+        if received[0] == "testmessage":
+            print(f'Message Received from Server {received[1]}: {received[2]}')
+        elif received[0] == "opcomplete":
+            print(f'Response from Server: {received[2]}')
+        elif received[0] == "wronglead":  #PLACEHOLDER
+            currentLeader = int(received[2])
+            print(f'Forwarded to correct Leader: Server {received[2]}')
+        elif received[0] == "claimleader":
+            currentLeader = int(received[1])
+            print(f'Server {currentLeader} has become the Leader')
+        else:
+            "ERROR, UNKNOWN MESSAGE"
+
+    return
+
+
+def requestLeader():
+    global currentLeader
+    targetServer = currentLeader
+    while True:
+        if targetServer == 1:
+            targetServer = 5
+        else:
+            targetServer = targetServer - 1
+
+        print(f'No response, requesting Server {targetServer} to become Leader')
+
+        data = ("leader", PID)
         threading.Thread(target=functions.sendMessage, args =( serversockets[targetServer], data, True  )).start()
         serversockets[currentLeader].settimeout(10)
 
         try:
-            serversockets[targetServer].recv(1024)
-            currentLeader = targetServer
+            received = pickle.loads( serversockets[targetServer].recv(1024) )
+            if received[0] == "leaderattempt":
+                print(f'Server {targetServer} is attempting to become the leader')
             return
-        except socket.timeout:
-            targetServer - 1
+        except:
+            continue
 
     return
     
 
 
 if __name__ == "__main__":
+    PID = sys.argv[1]
+
     #Get Data
     with open("./config.json") as f:
         portList = json.load(f)
+    with open("./clientconfig.json") as f:
+        clientPortList = json.load(f)
+
+    myPort = clientPortList[PID]
+
+    threading.Thread( target=listenForServers, args=( socket.gethostname(), myPort) ).start()
+
 
     while True:
         temp = input()
@@ -74,7 +130,7 @@ if __name__ == "__main__":
                 words.pop(0)
                 targetServer = int(words.pop(0))
                 message = ' '.join( words )
-                data = ("testmessage", "client", message)
+                data = ("testmessage", PID, message)
 
                 print(f'Sending message from Client to Server {targetServer}\n')
                 checkSocket( targetServer )
@@ -84,24 +140,17 @@ if __name__ == "__main__":
                 words.pop(0)
                 op = words.pop(0)
                 if op.lower() == "put":
-                    data = (op, words.pop(0), words.pop(0) )
+                    data = (op, PID, words.pop(0), words.pop(0) )
                 elif op.lower() == "get":
-                    data = (op, words.pop(0) )
-
-                checkSocket( currentLeader )
-                threading.Thread( target=functions.sendMessage, args=(serversockets[currentLeader], data, True)).start()
-                print(f'Waiting for response...')
+                    data = (op, PID, words.pop(0) )
 
                 try:
-                    received = pickle.load( serversockets[currentLeader].recv(1024) )
-                except socket.timeout:
-                    data = ("leader", "client", "")
+                    checkSocket( currentLeader )
+                    threading.Thread( target=functions.sendMessage, args=(serversockets[currentLeader], data, True)).start()
+                    print(f'Waiting for response...')
+                except:
                     requestLeader()
-                
-                threading.Thread( target=functions.sendMessage, args=(serversockets[currentLeader], data, True)).start()
-                received = pickle.load( serversockets[currentLeader].recv(1024) )
-                print(f'Response from Server: {received[0]}')
-                continue
+                    
             else:
                 continue
         except KeyboardInterrupt:
