@@ -21,6 +21,9 @@ portList = {}
 serversockets = {}
 socketstatus = {}
 
+#Paxos
+currentLeader = 5
+
 
 def failProcess():
     for key in serversockets:
@@ -39,7 +42,6 @@ def checkSocket( targetServer ):
         serversockets[targetServer] = tempSock
 
     return
-
 
 
 def listenForServers( address, port ):

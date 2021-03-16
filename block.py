@@ -1,3 +1,5 @@
+import functions
+
 class Block:
     def __init__(self, operation=(None,None,None), hashpointer=None, nonce=""):
         self.operation = operation
